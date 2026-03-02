@@ -1,0 +1,43 @@
+hf:
+  dataset: open-r1/codeforces-cots
+  subset: solutions_w_editorials
+  split: train
+  max_rows: 2
+  seed: 42
+llm:
+  base_url: https://api.deepseek.com/v1
+  api_key: sk-93124b3fb3bc4bc19e326e317a78e490
+  model: deepseek-chat
+  temperature: 0.2
+  max_tokens: 2048
+  timeout_sec: 120
+  max_retries: 4
+sandbox:
+  gpp: g++
+  std: c++17
+  compile_timeout_sec: 25
+  run_timeout_sec: 2
+  max_output_bytes: 200000
+output:
+  out_dir: ./out
+  planner_jsonl: planner.jsonl
+  coder_jsonl: coder.jsonl
+  fixer_jsonl: fixer.jsonl
+  fixer_steps_jsonl: fixer_steps.jsonl
+  fixer_traces_jsonl: fixer_traces.jsonl
+  complexity_jsonl: complexity.jsonl
+  coder_iterate_jsonl: coder_iterate.jsonl
+  debugger_attack_jsonl: debugger_attack.jsonl
+  testgen_general_jsonl: testgen_general.jsonl
+fixer:
+  max_iters: 2
+  keep_only_selfplay_fixed: false
+  require_failure: true
+dataset:
+  schema_version: v3_mapcoderlite_multiagent
+coder:
+  num_init_attempts: 3
+debugger:
+  max_tests: 24
+complexity:
+  code_source_mode: both_if_failed_else_ref
