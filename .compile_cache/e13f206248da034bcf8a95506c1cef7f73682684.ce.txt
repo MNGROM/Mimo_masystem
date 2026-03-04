@@ -1,0 +1,26 @@
+/tmp/tmpsiz_j6lp/main.cpp: In function ‘int main()’:
+/tmp/tmpsiz_j6lp/main.cpp:124:28: error: cannot bind non-const lvalue reference of type ‘bool&’ to an rvalue of type ‘bool’
+  124 |             for (bool& b : inv) b = !b;
+      |                            ^~~
+In file included from /usr/include/c++/11/vector:68,
+                 from /usr/include/c++/11/functional:62,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /usr/include/x86_64-linux-gnu/c++/11/bits/stdc++.h:65,
+                 from /tmp/tmpsiz_j6lp/main.cpp:1:
+/usr/include/c++/11/bits/stl_bvector.h:86:5: note:   after user-defined conversion: ‘std::_Bit_reference::operator bool() const’
+   86 |     operator bool() const _GLIBCXX_NOEXCEPT
+      |     ^~~~~~~~
+/tmp/tmpsiz_j6lp/main.cpp:167:17: error: expected ‘}’ at end of input
+  167 |         } else {
+      |                ~^
+/tmp/tmpsiz_j6lp/main.cpp:167:17: error: expected ‘}’ at end of input
+/tmp/tmpsiz_j6lp/main.cpp:162:33: note: to match this ‘{’
+  162 |     for (int i = 0; i < n; i++) {
+      |                                 ^
+/tmp/tmpsiz_j6lp/main.cpp:167:17: error: expected ‘}’ at end of input
+  167 |         } else {
+      |                 ^
+/tmp/tmpsiz_j6lp/main.cpp:50:12: note: to match this ‘{’
+   50 | int main() {
+      |            ^

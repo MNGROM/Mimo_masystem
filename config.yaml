@@ -2,26 +2,29 @@ hf:
   dataset: open-r1/codeforces-cots
   subset: solutions_w_editorials
   split: train
-  max_rows: 2
+  max_rows: 10000
   seed: 42
 llm:
   base_url: https://api.deepseek.com/v1
   api_key: sk-93124b3fb3bc4bc19e326e317a78e490
   model: deepseek-chat
   temperature: 0.2
-  max_tokens: 2048
+  max_tokens: 4096
   timeout_sec: 120
   max_retries: 4
 sandbox:
+  compile_cache_dir: ./.compile_cache
   gpp: g++
   std: c++17
-  compile_timeout_sec: 25
+  compile_timeout_sec: 120
   run_timeout_sec: 2
+  brute_run_timeout_sec: 1
   max_output_bytes: 200000
 output:
   out_dir: ./out
   planner_jsonl: planner.jsonl
   coder_jsonl: coder.jsonl
+  brute_coder_jsonl: brute_coder.jsonl
   fixer_jsonl: fixer.jsonl
   fixer_steps_jsonl: fixer_steps.jsonl
   fixer_traces_jsonl: fixer_traces.jsonl
@@ -36,8 +39,38 @@ fixer:
 dataset:
   schema_version: v3_mapcoderlite_multiagent
 coder:
-  num_init_attempts: 3
+  num_init_attempts: 1
+  # Initial buggy-code generation strategy:
+  # - mutate_ref: deterministic rule-based bug injection from the trusted reference
+  # - llm: LLM generates a solution directly
+  # - mixed: alternates between mutate_ref and llm
+  # - tiered: mixture of (mutate_ref, llm_perturb_from_ref, llm_free)
+  init_mode: tiered   # llm | mutate_ref | mixed | tiered
+  init_temperature: 0.8   # used when init_mode includes llm
+  perturb_temperature: 0.9  # used for llm perturbation from reference
+  max_bugs_per_init: 2
+  tier_weights:
+    mutate_ref: 0.25
+    llm_perturb: 0.55
+    llm_free: 0.2
 debugger:
+  max_tokens: 4096
   max_tests: 24
+  cap_tests: 12
+  target_mismatches: 3
+  max_input_ints: 220
+  parallel_workers: 4
+  parallel_chunk: 8
 complexity:
   code_source_mode: both_if_failed_else_ref
+  # Gate policy:
+  # - strict: reject whenever complexity agent says efficient=false
+  # - asymptotic_only (recommended for judge-only pipelines): only reject for likely asymptotic blowups
+  enable_gate: true
+  gate_policy: asymptotic_only
+  # If true, also emit complexity labels for every init attempt (slower).
+  per_attempt: false
+runtime:
+  workers: 8
+  shard_id: 0
+  num_shards: 5

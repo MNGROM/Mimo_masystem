@@ -1,0 +1,8 @@
+/tmp/tmpo_2mefb4/main.cpp: In function ‘int main()’:
+/tmp/tmpo_2mefb4/main.cpp:135:26: error: expected ‘}’ at end of input
+  135 |     if (n > 3 || k > 3) {
+      |                         ~^
+/tmp/tmpo_2mefb4/main.cpp:135:26: error: expected ‘}’ at end of input
+/tmp/tmpo_2mefb4/main.cpp:16:12: note: to match this ‘{’
+   16 | int main() {
+      |            ^

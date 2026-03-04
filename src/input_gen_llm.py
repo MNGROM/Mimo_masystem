@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import tempfile
 from typing import Optional, Dict, Any
@@ -67,16 +68,41 @@ def build_generator_script(llm, problem_prompt: str) -> Optional[str]:
         force_json_object=False  # DeepSeek varies; we parse ourselves
     )
 
-    # best-effort parse: find first JSON object
-    raw = raw.strip()
+    # best-effort parse: extract first balanced JSON object (strip fences, trailing commas)
+    raw = (raw or "").strip()
     if not raw:
         return None
+
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw, flags=re.I)
+    if m:
+        raw = m.group(1).strip()
+
     start = raw.find("{")
-    end = raw.rfind("}")
-    if start == -1 or end == -1 or end <= start:
+    if start < 0:
         return None
+
+    depth = 0
+    end = None
+    for i in range(start, len(raw)):
+        c = raw[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end is None:
+        return None
+
+    chunk = raw[start:end]
+    chunk = re.sub(r",\s*([}\]])", r"\1", chunk)
+    chunk = re.sub(r"\bTrue\b", "true", chunk)
+    chunk = re.sub(r"\bFalse\b", "false", chunk)
+    chunk = re.sub(r"\bNone\b", "null", chunk)
+
     try:
-        obj = json.loads(raw[start:end+1])
+        obj = json.loads(chunk)
     except Exception:
         return None
     if not isinstance(obj, dict):
@@ -85,6 +111,8 @@ def build_generator_script(llm, problem_prompt: str) -> Optional[str]:
     if not isinstance(script, str) or not script.strip():
         return None
     return script
+
+
 
 def generate_inputs_by_llm_script(llm, problem_prompt: str, ladder_ns) -> Optional[list[tuple[int, str]]]:
     """

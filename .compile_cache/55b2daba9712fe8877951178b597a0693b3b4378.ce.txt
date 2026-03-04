@@ -1,0 +1,27 @@
+/tmp/tmpsk0j9zr1/main.cpp: In function ‘int main()’:
+/tmp/tmpsk0j9zr1/main.cpp:272:43: error: expected ‘;’ at end of input
+  272 |                 if (depth[x] > depth[y]) x
+      |                                           ^
+      |                                           ;
+/tmp/tmpsk0j9zr1/main.cpp:272:43: error: expected ‘}’ at end of input
+/tmp/tmpsk0j9zr1/main.cpp:271:28: note: to match this ‘{’
+  271 |             while (x != y) {
+      |                            ^
+/tmp/tmpsk0j9zr1/main.cpp:272:43: error: expected ‘}’ at end of input
+  272 |                 if (depth[x] > depth[y]) x
+      |                                           ^
+/tmp/tmpsk0j9zr1/main.cpp:266:37: note: to match this ‘{’
+  266 |         for (int i = 1; i < s; ++i) {
+      |                                     ^
+/tmp/tmpsk0j9zr1/main.cpp:272:43: error: expected ‘}’ at end of input
+  272 |                 if (depth[x] > depth[y]) x
+      |                                           ^
+/tmp/tmpsk0j9zr1/main.cpp:242:37: note: to match this ‘{’
+  242 |     for (auto& [prod, s] : subsets) {
+      |                                     ^
+/tmp/tmpsk0j9zr1/main.cpp:272:43: error: expected ‘}’ at end of input
+  272 |                 if (depth[x] > depth[y]) x
+      |                                           ^
+/tmp/tmpsk0j9zr1/main.cpp:67:12: note: to match this ‘{’
+   67 | int main() {
+      |            ^

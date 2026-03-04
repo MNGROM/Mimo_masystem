@@ -1,0 +1,122 @@
+stage=ref
+idx=4
+pid=7961
+
+=== g++ --version ===
+g++ (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0
+Copyright (C) 2021 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+=== ulimit -a ===
+real-time non-blocking time  (microseconds, -R) unlimited
+core file size              (blocks, -c) unlimited
+data seg size               (kbytes, -d) unlimited
+scheduling priority                 (-e) 0
+file size                   (blocks, -f) unlimited
+pending signals                     (-i) 4126270
+max locked memory           (kbytes, -l) unlimited
+max memory size             (kbytes, -m) unlimited
+open files                          (-n) 65535
+pipe size                (512 bytes, -p) 8
+POSIX message queues         (bytes, -q) 819200
+real-time priority                  (-r) 0
+stack size                  (kbytes, -s) 8192
+cpu time                   (seconds, -t) unlimited
+max user processes                  (-u) unlimited
+virtual memory              (kbytes, -v) unlimited
+file locks                          (-x) unlimited
+
+=== compile error ===
+CE_CACHED: compile timeout
+
+=== code snippet (first 2000 chars) ===
+#include <bits/stdc++.h>
+using namespace std;
+
+int query(int i, int j) {
+    cout << "? " << i << ' ' << j << endl;
+    int res;
+    cin >> res;
+    return res;
+}
+
+void solve() {
+    int n, m;
+    cin >> n >> m;
+
+    int sr = 1, er = n;
+    int sc = 1, ec = m;
+
+    while (ec - sc + 1 > 25) {
+        int mr = sr + 1;
+        int w = ec - sc + 1;
+        int j1 = sc + (3 * w) / 16;
+        int j2 = sc + w / 2;
+        int j3 = sc + (13 * w) / 16;
+
+        int x1 = query(mr, j1);
+        if (x1 == 0) {
+            cout << "! " << mr << ' ' << j1 << endl;
+            return;
+        }
+
+        int x2 = query(mr, j2);
+        if (x2 == 0) {
+            cout << "! " << mr << ' ' << j2 << endl;
+            return;
+        }
+
+        int x3 = query(mr, j3);
+        if (x3 == 0) {
+            cout << "! " << mr << ' ' << j3 << endl;
+            return;
+        }
+
+        int max_x = max({x1, x2, x3});
+        int thr = (3 * w) / 4;
+
+        if (max_x > thr) {
+            sr += 3;
+            if (sr > er) sr = er;
+        } else {
+            int min_x = min({x1, x2, x3});
+            int jm = (x1 == min_x) ? j1 : (x2 == min_x) ? j2 : j3;
+
+            sc = max(sc, jm - min_x);
+            ec = min(ec, jm + min_x);
+        }
+    }
+
+    for (int r = sr; r <= er; ++r) {
+        int l = sc, r_col = ec;
+        while (l <= r_col) {
+            if (l == r_col) {
+                int res = query(r, l);
+                if (res == 0) {
+                    cout << "! " << r << ' ' << l << endl;
+                    return;
+                }
+                break;
+            }
+
+            int res = query(r, l);
+            if (res == 0) {
+                cout << "! " << r << ' ' << l << endl;
+                return;
+            }
+
+            int new_l = max(l + 1, (res - 1 + 2 * l) / 2 + 1);
+            int new_r = min(r_col, l + res);
+            l = new_l;
+            r_col = new_r;
+        }
+    }
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    int t;
+   

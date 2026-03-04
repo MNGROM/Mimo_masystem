@@ -1,14 +1,18 @@
 import os
 import json
 import re
+import math
+
 
 def ensure_dir(d):
     os.makedirs(d, exist_ok=True)
+
 
 def write_jsonl(path, rows):
     with open(path, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
 
 def safe_task_id(row, fallback_idx: int) -> str:
     pid = row.get("problem_id") or row.get("id") or row.get("slug")
@@ -18,6 +22,7 @@ def safe_task_id(row, fallback_idx: int) -> str:
     s = re.sub(r"\s+", "_", s)
     s = re.sub(r"[^a-zA-Z0-9_\-:]", "_", s)
     return s[:80]
+
 
 def extract_limits(row):
     # Best-effort: if dataset provides limits use them; otherwise defaults.
@@ -39,6 +44,7 @@ def extract_limits(row):
             pass
 
     return runtime_ms, memory_mb
+
 
 def extract_static_features(code_cpp: str):
     """Very lightweight static feature extractor for complexity analyst.
@@ -73,7 +79,7 @@ def extract_static_features(code_cpp: str):
             if stack:
                 last = stack.pop()
                 if last == "IN_LOOP":
-                    nesting = max(0, nesting-1)
+                    nesting = max(0, nesting - 1)
 
     sort_calls = len(re.findall(r"\bsort\s*\(", s))
     map_uses = len(re.findall(r"\bstd::map\b|\bmap<", s))
@@ -81,7 +87,9 @@ def extract_static_features(code_cpp: str):
     set_uses = len(re.findall(r"\bstd::set\b|\bset<", s))
     uset_uses = len(re.findall(r"\bstd::unordered_set\b|\bunordered_set<", s))
 
-    recursion = bool(re.search(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(.*\)\s*\{[\s\S]{0,2000}?\b\1\s*\(", s))
+    recursion = bool(
+        re.search(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(.*\)\s*\{[\s\S]{0,2000}?\b\1\s*\(", s)
+    )
 
     return {
         "for_count": for_count,
@@ -98,62 +106,141 @@ def extract_static_features(code_cpp: str):
     }
 
 
-def baseline_complexity_verdict(static_features: dict, plan_obj: dict, constraints: dict) -> dict:
-    """Deterministic, coarse baseline to anchor the Complexity agent.
+def _pick_primary_upper(plan_obj: dict) -> tuple[int, dict]:
+    """
+    Try to infer the dominant input scale from planner variables/input_bounds.
+    Returns (upper, debug_info).
+    """
+    debug = {"picked": None, "candidates": []}
+    cand: list[tuple[str, int]] = []
 
-    This is NOT meant to be perfect; it's meant to be stable and mostly-correct.
-    We look at (a) loop nesting, (b) sort calls, and (c) any plan-provided n bound if present.
+    # 1) variables: [{"name":"n","upper":2e5}, ...]
+    vars_list = plan_obj.get("variables") or []
+    if isinstance(vars_list, list):
+        for v in vars_list:
+            if not isinstance(v, dict):
+                continue
+            name = str(v.get("name") or "").strip()
+            u = v.get("upper")
+            if isinstance(u, (int, float)) and u > 0:
+                cand.append((name, int(u)))
+
+    # 2) input_bounds: {"n":2e5,"m":2e5}
+    ib = plan_obj.get("input_bounds") or {}
+    if isinstance(ib, dict):
+        for k, u in ib.items():
+            if isinstance(u, (int, float)) and u > 0:
+                cand.append((str(k), int(u)))
+
+    debug["candidates"] = cand[:]
+
+    if not cand:
+        return 200000, {"picked": ("fallback", 200000), "candidates": []}
+
+    # Prefer common dominant names, else pick max upper
+    prefer = {"n", "N", "m", "M", "q", "Q", "T", "t"}
+    preferred = [x for x in cand if x[0] in prefer]
+    if preferred:
+        name, upper = max(preferred, key=lambda x: x[1])
+        debug["picked"] = (name, upper)
+        return upper, debug
+
+    name, upper = max(cand, key=lambda x: x[1])
+    debug["picked"] = (name, upper)
+    return upper, debug
+
+
+def _nlogn_cost(n: int) -> float:
+    if n <= 1:
+        return 1.0
+    return float(n) * math.log2(float(n))
+
+
+def baseline_complexity_verdict(static_features: dict, plan_obj: dict, constraints: dict) -> dict:
+    """
+    Smarter deterministic anchor:
+    - Uses runtime_limit_ms to derive an operation budget.
+    - Allows higher complexity on smaller input ranges.
+    - Still conservative; meant to prevent obvious asymptotic blowups, not micro-opt debates.
     """
     sf = static_features or {}
     max_nest = int(sf.get("max_loop_nesting", 0) or 0)
     sort_calls = int(sf.get("sort_calls", 0) or 0)
 
-    # Try to read an n upper bound from planner variables list (preferred) or input_bounds.
-    n_upper = None
-    try:
-        vars_list = plan_obj.get("variables") or []
-        if isinstance(vars_list, list):
-            for v in vars_list:
-                if isinstance(v, dict) and v.get("name") in ("n", "N"):
-                    u = v.get("upper")
-                    if isinstance(u, (int, float)):
-                        n_upper = int(u)
-                        break
-        if n_upper is None:
-            ib = plan_obj.get("input_bounds") or {}
-            if isinstance(ib, dict) and isinstance(ib.get("n"), (int, float)):
-                n_upper = int(ib["n"])
-    except Exception:
-        n_upper = None
+    runtime_ms = int((constraints or {}).get("runtime_limit_ms", 2000) or 2000)
+    time_sec = max(0.5, runtime_ms / 1000.0)
 
-    # Fallback typical CF bound
-    if n_upper is None or n_upper <= 0:
-        n_upper = 200000
+    # Conservative ops/sec. (CF C++ typical might be higher, but keep anchor stable.)
+    ops_per_sec = 8e7
+    budget = ops_per_sec * time_sec
 
-    # Rule-of-thumb: nested>=2 suggests ~O(n^2) patterns; nested>=3 is definitely too slow.
+    # Infer dominant scale from planner
+    n_upper, pick_dbg = _pick_primary_upper(plan_obj or {})
+
     likely_n2 = max_nest >= 2
     likely_n3 = max_nest >= 3
     has_sort = sort_calls > 0
 
-    # Very coarse fit decision
-    efficient = True
-    reason = ""
+    # Decide a coarse complexity family
     if likely_n3:
-        efficient = False
-        reason = "Detected 3+ nested loops; likely O(n^3) in worst-case."
-    elif likely_n2 and n_upper >= 50000:
-        efficient = False
-        reason = "Detected 2 nested loops; likely O(n^2) and n is large (>=5e4)."
+        family = "n3"
+        expr = "O(n^3)"
+    elif likely_n2:
+        family = "n2"
+        expr = "O(n^2)"
     else:
-        # n log n / linear cases are assumed OK for 2s CF by default.
-        efficient = True
-        reason = "No obvious high-order nesting; likely <= O(n log n)."
+        family = "nlogn" if has_sort else "n"
+        expr = "O(n log n)" if has_sort else "O(n)"
 
-    expr = "O(n^3)" if likely_n3 else ("O(n^2)" if likely_n2 else ("O(n log n)" if has_sort else "O(n)"))
+    # Convert budget to an "allowed n" threshold for that family.
+    # c_factor: penalize nested loops / heavier DS a bit.
+    c_factor = 1.0
+    if sf.get("uses_map") or sf.get("uses_set"):
+        c_factor *= 2.0
+    if sf.get("has_recursion"):
+        c_factor *= 1.3
+    if sort_calls > 0:
+        c_factor *= 1.2
+
+    allowed_n = None
+    if family == "n":
+        # Rough per-element budget
+        allowed_n = budget / (50.0 * c_factor)
+    elif family == "nlogn":
+        # Solve n log2 n <= budget / (120*c)
+        target = budget / (120.0 * c_factor)
+        n = min(max(10.0, float(n_upper)), 1e8)
+        for _ in range(6):
+            denom = max(1.0, math.log2(max(2.0, n)))
+            n = target / denom
+        allowed_n = n
+    elif family == "n2":
+        # n^2 <= budget / (200*c)
+        allowed_n = math.sqrt(max(1.0, budget / (200.0 * c_factor)))
+    else:  # n3
+        # n^3 <= budget / (600*c)
+        allowed_n = max(1.0, budget / (600.0 * c_factor)) ** (1.0 / 3.0)
+
+    efficient = n_upper <= int(allowed_n)
+
+    if efficient:
+        reason = (
+            f"{expr} seems feasible: inferred_upper={n_upper}, allowed≈{int(allowed_n)} "
+            f"(time={runtime_ms}ms, c≈{c_factor:.2f})."
+        )
+    else:
+        reason = (
+            f"{expr} likely too slow: inferred_upper={n_upper}, allowed≈{int(allowed_n)} "
+            f"(time={runtime_ms}ms, c≈{c_factor:.2f})."
+        )
 
     return {
         "estimated_time": expr,
         "assumed_n_upper": n_upper,
-        "efficient": efficient,
+        "efficient": bool(efficient),
         "reason": reason,
+        "budget_ops": int(budget),
+        "allowed_n_rough": int(allowed_n),
+        "pick_debug": pick_dbg,
+        "c_factor": round(c_factor, 3),
     }

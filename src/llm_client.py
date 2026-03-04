@@ -10,7 +10,7 @@ class LLMClient:
         self.max_tokens = max_tokens
         self.max_retries = max_retries
 
-    def chat(self, messages, force_json_object: bool = True) -> str:
+    def chat(self, messages, force_json_object: bool = True, temperature: float | None = None, max_tokens: int | None = None) -> str:
         """
         If force_json_object=True, try OpenAI response_format json_object first.
         If the backend doesn't support it, gracefully fall back to normal chat output.
@@ -28,8 +28,8 @@ class LLMClient:
                 resp = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
+                    temperature=(self.temperature if temperature is None else temperature),
+                    max_tokens=(self.max_tokens if max_tokens is None else max_tokens),
                     **kwargs
                 )
                 return resp.choices[0].message.content

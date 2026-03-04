@@ -61,7 +61,7 @@ def fixer_output(task_id: str, iteration: int, fixed_code_cpp: str):
         "task_id": task_id,
         "iteration": int(iteration),
         "language": "cpp",
-        "code_cpp": fixed_code_cpp,
+        "code_cpp": fixed_code_cpp,   # ✅ 修复：不要写成 fixed_code_cppp
         "compiler_flags": ["-O2", "-std=c++17"],
     }
 
