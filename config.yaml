@@ -6,7 +6,7 @@ hf:
   seed: 42
 llm:
   base_url: https://api.deepseek.com/v1
-  api_key: sk-93124b3fb3bc4bc19e326e317a78e490
+  api_key:
   model: deepseek-chat
   temperature: 0.2
   max_tokens: 4096
